@@ -101,3 +101,87 @@ export function buildDateValue(
   }
   return { start: datePart };
 }
+
+/**
+ * --- Compatibility exports (thin wrappers around your existing functions) ---
+ * These names are what our Edge Functions will import.
+ * They just call your current helpers to avoid duplication.
+ */
+
+/**
+ * getPodioAppAccessToken
+ * Returns a Podio OAuth access token using App Grant.
+ */
+export async function getPodioAppAccessToken(envs: {
+  clientId: string;
+  clientSecret: string;
+  appId: string;
+  appToken: string;
+}): Promise<string> {
+  // Reuse your getPodioToken (same semantics)
+  return await getPodioToken(envs);
+}
+
+/**
+ * getPodioItem
+ * Fetches a Podio item by numeric item_id. Returns the raw Response
+ * so callers can inspect .ok, .status, and read .json()/.text().
+ */
+export function getPodioItem(accessToken: string, itemId: number | string): Promise<Response> {
+  return fetchWithTimeout(`https://api.podio.com/item/${itemId}`, {
+    method: "GET",
+    headers: { Authorization: `OAuth2 ${accessToken}` },
+  });
+}
+
+/**
+ * deletePodioItem
+ * Deletes a Podio item by item_id. 404/410 are typically treated as
+ * "already gone" by callers.
+ */
+export function deletePodioItem(accessToken: string, itemId: number | string): Promise<Response> {
+  return fetchWithTimeout(`https://api.podio.com/item/${itemId}`, {
+    method: "DELETE",
+    headers: { Authorization: `OAuth2 ${accessToken}` },
+  });
+}
+
+/**
+ * resolveHoldFieldIds
+ * Resolves numeric field_ids for the "status" category field and the
+ * "hold-expiration" date field, using external_id first and falling
+ * back to provided numeric defaults if needed.
+ */
+export async function resolveHoldFieldIds(params: {
+  accessToken: string;
+  appId: string;
+  defaultStatusId?: number;       // fallback if external_id not found
+  defaultHoldExpId?: number;      // fallback if external_id not found
+  statusExternalId?: string;      // default "status"
+  holdExpExternalId?: string;     // default "hold-expiration"
+}): Promise<{ statusFieldId: number; holdExpFieldId: number }> {
+  const {
+    accessToken,
+    appId,
+    defaultStatusId = 272287010,
+    defaultHoldExpId = 273406927,
+    statusExternalId = "status",
+    holdExpExternalId = "hold-expiration",
+  } = params;
+
+  const meta = await getPodioAppMeta(appId, accessToken);
+  const fields: any[] = meta?.fields || [];
+
+  const statusField = fields.find(
+    (f: any) => f.external_id === statusExternalId || f.field_id === defaultStatusId
+  );
+  const holdExpField = fields.find(
+    (f: any) => f.external_id === holdExpExternalId || f.field_id === defaultHoldExpId
+  );
+
+  const statusFieldId = statusField?.field_id ?? defaultStatusId;
+  const holdExpFieldId = holdExpField?.field_id ?? defaultHoldExpId;
+
+  return { statusFieldId, holdExpFieldId };
+}
+
