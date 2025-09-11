@@ -1,25 +1,34 @@
-// Service-role Supabase client for Edge Functions
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// supabase.ts — service-role client (singleton) for Edge Functions
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-export const serviceClient = () =>
-  createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { persistSession: false } }
-  );
-// Ensure this import exists at the top of the file (only once)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+let _client: SupabaseClient | null = null;
 
-// --- Compatibility export used by Edge Functions ---
-export function createServiceClient() {
+/**
+ * createServiceClient
+ * Returns a singleton Supabase client initialized with
+ * SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from env.
+ * Throws a clear error if either env var is missing.
+ */
+export function createServiceClient(): SupabaseClient {
+  if (_client) return _client;
+
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
   if (!url || !key) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error("missing_supabase_env: require SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
   }
-  // No session persistence in Edge
-  return createClient(url, key, { auth: { persistSession: false } });
+
+  _client = createClient(url, key, {
+    auth: { persistSession: false },
+  });
+
+  return _client;
 }
 
-// Back-compat alias (some code may import this name)
+/**
+ * serviceClient
+ * Alias for createServiceClient to match older imports.
+ */
 export const serviceClient = createServiceClient;
+
