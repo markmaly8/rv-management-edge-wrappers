@@ -1,34 +1,29 @@
-// supabase.ts — service-role client (singleton) for Edge Functions
+// supabase.ts — service-role Supabase client for Edge Functions
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-let _client: SupabaseClient | null = null;
+export type ServiceClient = SupabaseClient;
 
 /**
  * createServiceClient
- * Returns a singleton Supabase client initialized with
- * SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from env.
+ * Returns a Supabase service-role client using SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
  * Throws a clear error if either env var is missing.
  */
-export function createServiceClient(): SupabaseClient {
-  if (_client) return _client;
-
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
+export function createServiceClient(): ServiceClient {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!url || !key) {
-    throw new Error("missing_supabase_env: require SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error("missing_supabase_env: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
-
-  _client = createClient(url, key, {
+  return createClient(url, key, {
     auth: { persistSession: false },
+    global: {
+      headers: { "X-Client-Info": "rv-management-edge-wrappers/v1.0.2" },
+    },
   });
-
-  return _client;
 }
 
 /**
- * serviceClient
- * Alias for createServiceClient to match older imports.
+ * serviceClient (compat alias)
+ * Kept for older functions that call serviceClient() directly.
  */
 export const serviceClient = createServiceClient;
-
