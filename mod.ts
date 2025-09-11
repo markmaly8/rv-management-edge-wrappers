@@ -17,4 +17,7 @@ export * from "./availability.ts";
 // Keep a visible version string so functions can log which wrapper build they use.
 export const WRAPPERS_API_VERSION = "v1.0.2";
 
+export { createStepLogger, mask } from "./log.ts";
+
+
 
