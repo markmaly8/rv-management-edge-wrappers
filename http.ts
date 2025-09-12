@@ -1,21 +1,39 @@
-// fetchWithTimeout with a single retry on 429/5xx
+// supabase/functions/_wrappers/http.ts
 
-export async function fetchWithTimeout(
-  url: string,
-  init: RequestInit & { timeoutMs?: number; retry?: boolean } = {},
-): Promise<Response> {
-  const { timeoutMs = 10000, retry = true, ...rest } = init;
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
+// Standard CORS headers for browser access to edge functions.
+// Keep permissive for now; you can narrow origins per-tenant later.
+export const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+} as const;
 
-  try {
-    const res = await fetch(url, { ...rest, signal: controller.signal });
-    if (retry && (res.status === 429 || (res.status >= 500 && res.status <= 599))) {
-      await new Promise((r) => setTimeout(r, 200 + Math.floor(Math.random() * 200)));
-      return await fetch(url, { ...rest, signal: controller.signal });
-    }
-    return res;
-  } finally {
-    clearTimeout(t);
+// Handle OPTIONS preflight. Return a Response to short-circuit, or null to continue.
+export function preflight(req: Request): Response | null {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
   }
+  return null;
+}
+
+// Canonical JSON response with CORS & content-type.
+export function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Convenience helpers for consistent shapes across functions.
+export function ok<T>(data: T, status = 200): Response {
+  return json({ ok: true, ...((data as any) ?? {}) }, status);
+}
+export function badRequest(code: string, details?: unknown): Response {
+  return json({ ok: false, error: code, details }, 400);
+}
+export function unauthorized(code = "unauthorized"): Response {
+  return json({ ok: false, error: code }, 401);
+}
+export function internal(code = "internal_error", details?: unknown): Response {
+  return json({ ok: false, error: code, details }, 500);
 }
